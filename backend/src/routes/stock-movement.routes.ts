@@ -1,0 +1,26 @@
+import { Router } from "express";
+
+import stockMovementController from "../controllers/stock-movement.controller.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { authorize } from "../middlewares/permission.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import { createStockMovementSchema } from "../validators/stock-movement.validator.js";
+
+const router = Router();
+
+router.post(
+  "/",
+  authenticate,
+  authorize("inventory", "update", "master"),
+  validate(createStockMovementSchema),
+  stockMovementController.create.bind(stockMovementController),
+);
+
+router.get(
+  "/:productId",
+  authenticate,
+  authorize("inventory", "read", "master"),
+  stockMovementController.getHistory.bind(stockMovementController),
+);
+
+export default router;

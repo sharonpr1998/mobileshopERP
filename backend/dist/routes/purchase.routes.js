@@ -1,0 +1,11 @@
+import { Router } from "express";
+import purchaseController from "@/controllers/purchase.controller.js";
+import { authenticate } from "@/middlewares/auth.middleware.js";
+import { authorize } from "@/middlewares/permission.middleware.js";
+import { validate } from "@/middlewares/validate.middleware.js";
+import { createPurchaseSchema } from "@/validators/purchase.validator.js";
+const router = Router();
+router.use(authenticate);
+router.post("/", authorize("inventory", "create", "master"), validate(createPurchaseSchema), purchaseController.create.bind(purchaseController));
+router.get("/", authorize("inventory", "read", "master"), purchaseController.getAll.bind(purchaseController));
+export default router;
