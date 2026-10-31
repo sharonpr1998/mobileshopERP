@@ -16,7 +16,9 @@ import repairRoutes from "@/routes/repair.routes.js";
 import attendanceRoutes from "@/routes/attendance.routes.js";
 import { authenticate } from "@/middlewares/auth.middleware.js";
 import rbacRoutes from "@/routes/rbac.routes.js";
-
+import customerOrderRoutes from "@/routes/customer-order.routes.js";
+import customerRepairRoutes from "@/routes/customer-repair.routes.js";
+import customerProfileRoutes from "@/routes/customer-profile.routes.js";
 const app = express();
 
 app.use(helmet());
@@ -42,6 +44,9 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/repairs", repairRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/rbac", authenticate, rbacRoutes);
+app.use("/api/customer", customerOrderRoutes);
+app.use("/api/customer", customerRepairRoutes);
+app.use("/api/customer", customerProfileRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({

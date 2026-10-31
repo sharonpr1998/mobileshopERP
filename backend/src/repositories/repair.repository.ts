@@ -40,6 +40,11 @@ class RepairRepository {
       .populate("customerId", "name phone")
       .populate("createdBy", "name");
   }
+  async findByCustomerId(customerId: string) {
+    return Repair.find({
+      customerId,
+    }).sort({ createdAt: -1 });
+  }
 }
 
 export default new RepairRepository();

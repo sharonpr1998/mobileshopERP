@@ -1,4 +1,3 @@
-
 import Sale from "../models/sale.model.js";
 import type mongoose from "mongoose";
 
@@ -17,10 +16,7 @@ interface CreateSaleData {
 }
 
 class SaleRepository {
-  async create(
-    data: CreateSaleData,
-    session: mongoose.ClientSession,
-  ) {
+  async create(data: CreateSaleData, session: mongoose.ClientSession) {
     const [sale] = await Sale.create([data], { session });
     return sale;
   }
@@ -31,6 +27,11 @@ class SaleRepository {
       .populate("items.productId", "name sku")
       .populate("createdBy", "name")
       .sort({ createdAt: -1 });
+  }
+  async findByCustomerId(customerId: string) {
+    return Sale.find({
+      customerId,
+    }).sort({ createdAt: -1 });
   }
 }
 

@@ -1,6 +1,8 @@
+
 import mongoose, { Schema, type Document } from "mongoose";
 
 export interface ICustomer extends Document {
+  userId?: mongoose.Types.ObjectId;
   name: string;
   phone: string;
   email?: string;
@@ -11,6 +13,12 @@ export interface ICustomer extends Document {
 
 const customerSchema = new Schema<ICustomer>(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      unique: true,
+      sparse: true,
+    },
     name: {
       type: String,
       required: true,
@@ -43,12 +51,12 @@ const customerSchema = new Schema<ICustomer>(
       default: true,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 customerSchema.index({ name: 1, phone: 1 });
 
 export default mongoose.model<ICustomer>(
   "Customer",
-  customerSchema,
+  customerSchema
 );

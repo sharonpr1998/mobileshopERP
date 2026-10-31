@@ -20,28 +20,42 @@ export interface AuthUser {
   role?: string;
 }
 
+export interface UserPermission {
+  module: string;
+  action: string;
+  moduleType: string;
+}
+
 interface LoginResponse {
   success?: boolean;
   message?: string;
   data?: {
     token?: string;
     user?: AuthUser;
+    permissions?: UserPermission[];
   };
   token?: string;
   accessToken?: string;
   user?: AuthUser;
+  permissions?: UserPermission[];
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
+  permissions: UserPermission[];
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
+  hasPermission: (
+    module: string,
+    action: string,
+    moduleType: string
+  ) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
-  undefined,
+  undefined
 );
 
 export function AuthProvider({
@@ -51,42 +65,56 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<UserPermission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Restore the session saved in localStorage.
+  // Restore saved login session from localStorage.
   useEffect(() => {
     try {
       const savedToken = localStorage.getItem("erp_token");
       const savedUser = localStorage.getItem("erp_user");
+      const savedPermissions = localStorage.getItem("erp_permissions");
 
       if (savedToken && savedUser) {
         const parsedUser = JSON.parse(savedUser) as AuthUser;
 
-        // Intentional state restoration from browser storage.
+        const parsedPermissions: UserPermission[] =
+          savedPermissions
+            ? (JSON.parse(savedPermissions) as UserPermission[])
+            : [];
+
+        // Intentional restoration of browser storage into React state.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setToken(savedToken);
 
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setUser(parsedUser);
+
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPermissions(parsedPermissions);
       } else {
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
+        localStorage.removeItem("erp_permissions");
       }
     } catch {
       localStorage.removeItem("erp_token");
       localStorage.removeItem("erp_user");
+      localStorage.removeItem("erp_permissions");
     } finally {
-      // Intentional completion of session initialization.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
+    async (
+      email: string,
+      password: string
+    ): Promise<AuthUser> => {
       if (!API_URL) {
         throw new Error(
-          "API URL is missing. Check frontend/.env.local.",
+          "API URL is missing. Check frontend/.env.local."
         );
       }
 
@@ -107,11 +135,13 @@ export function AuthProvider({
         throw new Error(result.message || "Login failed.");
       }
 
-      // Backend response: { success, data: { token, user } }
       const authToken =
         result.data?.token || result.token || result.accessToken;
 
       const authUser = result.data?.user || result.user;
+
+      const userPermissions =
+        result.data?.permissions || result.permissions || [];
 
       if (!authToken || !authUser) {
         throw new Error("Invalid login response from server.");
@@ -119,29 +149,57 @@ export function AuthProvider({
 
       localStorage.setItem("erp_token", authToken);
       localStorage.setItem("erp_user", JSON.stringify(authUser));
+      localStorage.setItem(
+        "erp_permissions",
+        JSON.stringify(userPermissions)
+      );
 
       setToken(authToken);
       setUser(authUser);
+      setPermissions(userPermissions);
+
+      // Return logged-in user for role-based redirection.
+      return authUser;
     },
-    [],
+    []
   );
 
   const logout = useCallback(() => {
     localStorage.removeItem("erp_token");
     localStorage.removeItem("erp_user");
+    localStorage.removeItem("erp_permissions");
 
     setToken(null);
     setUser(null);
+    setPermissions([]);
   }, []);
+
+  const hasPermission = useCallback(
+    (module: string, action: string, moduleType: string) => {
+      if (user?.role === "super_admin") {
+        return true;
+      }
+
+      return permissions.some(
+        (permission) =>
+          permission.module === module &&
+          permission.action === action &&
+          permission.moduleType === moduleType
+      );
+    },
+    [user, permissions]
+  );
 
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
+        permissions,
         loading,
         login,
         logout,
+        hasPermission,
       }}
     >
       {children}
@@ -154,7 +212,7 @@ export function useAuth(): AuthContextType {
 
   if (!context) {
     throw new Error(
-      "useAuth must be used within an AuthProvider.",
+      "useAuth must be used within an AuthProvider."
     );
   }
 

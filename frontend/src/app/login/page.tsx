@@ -16,12 +16,22 @@ export default function LoginPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     setError("");
     setSubmitting(true);
 
     try {
-      await login(email, password);
-      router.replace("/dashboard");
+      const authUser = await login(email, password);
+
+      const role = authUser.role?.toLowerCase();
+
+      if (role === "customer") {
+        router.replace("/customer");
+      } else if (role === "super_admin" || role === "staff") {
+        router.replace("/dashboard");
+      } else {
+        throw new Error("Your account has an invalid role.");
+      }
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Login failed",
@@ -48,6 +58,7 @@ export default function LoginPage() {
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
+
           <input
             id="email"
             type="email"
@@ -64,6 +75,7 @@ export default function LoginPage() {
           <label htmlFor="password" className="text-sm font-medium">
             Password
           </label>
+
           <input
             id="password"
             type="password"
