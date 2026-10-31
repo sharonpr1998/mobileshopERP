@@ -4,19 +4,134 @@
 import { useState } from "react";
 import AttendanceSelfie from "@/components/attendance/AttendanceSelfie";
 import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/lib/api";
+import { useEffect } from "react";
 
-type AttendanceMode = "check-in" | "check-out";
+type AttendanceMode = "check-in" | "check-out" | "completed";
+
+interface AttendanceRecord {
+  dateKey?: string;
+  checkInAt?: string;
+  checkOutAt?: string | null;
+}
+
+interface AttendanceApiResponse {
+  data?: AttendanceRecord[] | { data?: AttendanceRecord[] };
+}
+
+function getTodayKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function AttendanceStatus({
+  token,
+  onStatusLoaded,
+}: {
+  token: string;
+  onStatusLoaded: (mode: AttendanceMode) => void;
+}) {
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchAttendance() {
+      try {
+        const result = await apiRequest<AttendanceApiResponse>(
+          "/attendance/my",
+          {
+            method: "GET",
+            token,
+          },
+        );
+
+        if (controller.signal.aborted) return;
+
+        const responseData = result.data;
+
+        const records = Array.isArray(responseData)
+          ? responseData
+          : responseData?.data ?? [];
+
+        const todayKey = getTodayKey();
+
+        const todayRecord = records.find((record) => {
+          if (record.dateKey) {
+            return record.dateKey === todayKey;
+          }
+
+          if (record.checkInAt) {
+            const recordDate = new Intl.DateTimeFormat("en-CA", {
+              timeZone: "Asia/Kolkata",
+            }).format(new Date(record.checkInAt));
+
+            return recordDate === todayKey;
+          }
+
+          return false;
+        });
+
+        if (!todayRecord) {
+          onStatusLoaded("check-in");
+        } else if (todayRecord.checkOutAt) {
+          onStatusLoaded("completed");
+        } else {
+          onStatusLoaded("check-out");
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load attendance status.",
+        );
+      }
+    }
+
+    void fetchAttendance();
+
+    return () => controller.abort();
+  }, [token, onStatusLoaded]);
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+        <p className="text-sm text-red-700">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-3 py-10">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      <p className="text-sm text-slate-500">
+        Checking today's attendance...
+      </p>
+    </div>
+  );
+}
 
 export default function AttendancePage() {
-  const { token, loading } = useAuth();
-  const [mode, setMode] = useState<AttendanceMode>("check-in");
+  const { token, loading: authLoading } = useAuth();
 
-  if (loading) {
+  const [mode, setMode] = useState<AttendanceMode | null>(null);
+
+  if (authLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <p className="text-sm text-slate-500">
-          Loading attendance...
-        </p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+        Loading...
       </main>
     );
   }
@@ -24,7 +139,7 @@ export default function AttendancePage() {
   if (!token) {
     return (
       <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white p-8">
+        <div className="mx-auto max-w-xl rounded-2xl border bg-white p-8">
           <h1 className="text-xl font-bold text-slate-900">
             Login required
           </h1>
@@ -39,121 +154,81 @@ export default function AttendancePage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl space-y-7">
-        {/* Page heading */}
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">
-              WORKSPACE / ATTENDANCE
-            </p>
+        <header>
+          <p className="text-sm font-semibold text-blue-600">
+            WORKSPACE / ATTENDANCE
+          </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-              Staff Attendance
-            </h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+            Staff Attendance
+          </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Record your attendance securely using a selfie
-              and your current location.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="text-sm font-medium text-emerald-700">
-              Attendance portal
-            </span>
-          </div>
+          <p className="mt-2 text-sm text-slate-500">
+            Securely record your attendance using selfie and GPS verification.
+          </p>
         </header>
 
-        {/* Instructions */}
-        <section className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl">
-              📷
-            </div>
-            <h2 className="mt-4 font-semibold text-slate-900">
-              Capture selfie
-            </h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">
-              Capture a clear photo before submitting attendance.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-xl">
-              📍
-            </div>
-            <h2 className="mt-4 font-semibold text-slate-900">
-              Verify location
-            </h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">
-              Allow browser location access and follow the shop
-              location policy.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-xl">
-              🕒
-            </div>
-            <h2 className="mt-4 font-semibold text-slate-900">
-              Record working hours
-            </h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">
-              Submit check-in and check-out using the attendance
-              controls below.
-            </p>
-          </div>
-        </section>
-
-        {/* Attendance controls */}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-5 sm:p-7">
             <h2 className="text-xl font-bold text-slate-900">
-              Record attendance
+              {mode === null
+                ? "Checking Attendance"
+                : mode === "check-in"
+                  ? "Staff Check-in"
+                  : mode === "check-out"
+                    ? "Staff Check-out"
+                    : "Attendance Completed"}
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
-              Select the action you want to perform.
+              {mode === "check-in"
+                ? "Capture your selfie to start your workday."
+                : mode === "check-out"
+                  ? "Capture your selfie to finish your workday."
+                  : mode === "completed"
+                    ? "You have completed today's attendance."
+                    : "Please wait while we check your attendance."}
             </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-100 p-1.5">
-              <button
-                type="button"
-                onClick={() => setMode("check-in")}
-                className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${
-                  mode === "check-in"
-                    ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Check-in
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode("check-out")}
-                className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${
-                  mode === "check-out"
-                    ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Check-out
-              </button>
-            </div>
           </div>
 
           <div className="p-4 sm:p-7">
             <div className="mx-auto max-w-2xl">
-              <AttendanceSelfie
-                key={mode}
-                token={token}
-                mode={mode}
-              />
+              {mode === null ? (
+                <AttendanceStatus
+                  key={token}
+                  token={token}
+                  onStatusLoaded={setMode}
+                />
+              ) : mode === "completed" ? (
+                <div className="rounded-2xl bg-emerald-50 px-6 py-10 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-700">
+                    ✓
+                  </div>
+
+                  <h3 className="mt-5 text-xl font-bold text-emerald-900">
+                    Attendance Completed!
+                  </h3>
+
+                  <p className="mt-2 text-sm text-emerald-800">
+                    Your check-in and check-out have both been recorded for today.
+                  </p>
+                </div>
+              ) : (
+                <AttendanceSelfie
+                  key={mode}
+                  token={token}
+                  mode={mode}
+                  onSuccess={() => {
+                    setMode(
+                      mode === "check-in" ? "check-out" : "completed",
+                    );
+                  }}
+                />
+              )}
             </div>
           </div>
         </section>
 
-        {/* Security note */}
         <div className="flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
           <span className="text-lg">🔒</span>
           <div>
@@ -161,10 +236,8 @@ export default function AttendancePage() {
               Attendance security
             </p>
             <p className="mt-1 text-sm leading-5 text-blue-800">
-              Location validation is enforced by the backend.
-              Selfie capture alone does not confirm a person&apos;s
-              identity; face verification must be implemented and
-              validated separately.
+              GPS location and selfie are required for both check-in and
+              check-out. Location validation is performed by the backend.
             </p>
           </div>
         </div>

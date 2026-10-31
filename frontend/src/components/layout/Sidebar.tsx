@@ -36,6 +36,13 @@ const navigation = [
     moduleType: "master",
   },
   {
+    label: "Staff Management",
+    href: "/staff",
+    icon: "♟",
+    module: "staff",
+    moduleType: "master",
+  },
+  {
     label: "Repairs",
     href: "/repairs",
     icon: "⚙",
@@ -66,8 +73,11 @@ export default function Sidebar() {
 
   const { user, loading, logout, hasPermission } = useAuth();
 
-  const isSuperAdmin = user?.role === "super_admin";
-  const isCustomer = user?.role === "customer";
+  const isSuperAdmin =
+    user?.role?.toLowerCase() === "super_admin";
+
+  const isCustomer =
+    user?.role?.toLowerCase() === "customer";
 
   const [rbacOpen, setRbacOpen] = useState(
     rbacNavigation.some(
@@ -82,6 +92,7 @@ export default function Sidebar() {
     return null;
   }
 
+  // Show only permitted menus for staff.
   const visibleNavigation = navigation.filter((item) => {
     if (isSuperAdmin) return true;
 
@@ -124,7 +135,7 @@ export default function Sidebar() {
           Workspace
         </p>
 
-        {/* Dashboard - Admin and Staff */}
+        {/* Dashboard */}
         <Link
           href="/dashboard"
           className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
@@ -167,7 +178,9 @@ export default function Sidebar() {
           <div className="pt-2">
             <button
               type="button"
-              onClick={() => setRbacOpen((open) => !open)}
+              onClick={() =>
+                setRbacOpen((open) => !open)
+              }
               aria-expanded={rbacOpen}
               className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition ${
                 isRbacActive

@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 
 import { env } from "@/config/env.js";
@@ -10,6 +11,8 @@ interface Location {
 }
 
 class AttendanceService {
+  private readonly workingHoursMinutes = 8 * 60;
+
   private getTodayKey(): string {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Kolkata",
@@ -25,19 +28,13 @@ class AttendanceService {
     return `${values.year}-${values.month}-${values.day}`;
   }
 
-  private getDistanceInMeters(
-    first: Location,
-    second: Location,
-  ): number {
+  private getDistanceInMeters(first: Location, second: Location): number {
     const earthRadius = 6_371_000;
-
-    const toRadians = (degrees: number) =>
-      (degrees * Math.PI) / 180;
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
     const latitudeDifference = toRadians(
       second.latitude - first.latitude,
     );
-
     const longitudeDifference = toRadians(
       second.longitude - first.longitude,
     );
@@ -68,10 +65,7 @@ class AttendanceService {
       throw new Error("Shop GPS coordinates are not configured");
     }
 
-    const distance = this.getDistanceInMeters(
-      shopLocation,
-      location,
-    );
+    const distance = this.getDistanceInMeters(shopLocation, location);
 
     if (distance > env.shopRadiusMeters) {
       throw new Error(
@@ -80,88 +74,142 @@ class AttendanceService {
     }
   }
 
-async checkIn(
-  userId: string,
-  location: Location,
-  selfieBuffer: Buffer,
-) {
-  if (!mongoose.isValidObjectId(userId)) {
-    throw new Error("Invalid user ID");
+  private formatAttendance<T extends {
+    checkInAt: Date;
+    checkOutAt?: Date;
+  }>(attendance: T) {
+    const endTime = attendance.checkOutAt
+      ? new Date(attendance.checkOutAt).getTime()
+      : null;
+
+    const startTime = new Date(attendance.checkInAt).getTime();
+
+    const workedMinutes = endTime
+      ? Math.max(0, Math.floor((endTime - startTime) / 60000))
+      : null;
+
+    const overtimeMinutes =
+      workedMinutes === null
+        ? null
+        : Math.max(0, workedMinutes - this.workingHoursMinutes);
+
+    return {
+      ...attendance,
+      workedMinutes,
+      overtimeMinutes,
+      completed: Boolean(attendance.checkOutAt),
+    };
   }
 
-  this.verifyShopLocation(location);
+  async checkIn(
+    userId: string,
+    location: Location,
+    selfieBuffer: Buffer,
+  ) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new Error("Invalid user ID");
+    }
 
-  const dateKey = this.getTodayKey();
+    this.verifyShopLocation(location);
 
-  const existingAttendance =
-    await attendanceRepository.findToday(userId, dateKey);
+    const dateKey = this.getTodayKey();
+    const existingAttendance = await attendanceRepository.findToday(
+      userId,
+      dateKey,
+    );
 
-  if (existingAttendance) {
-    throw new Error("Attendance already marked for today");
+    if (existingAttendance) {
+      throw new Error("Attendance already marked for today");
+    }
+
+    const image = await imageUploadService.uploadAttendanceSelfie(
+      selfieBuffer,
+    );
+
+    try {
+      return await attendanceRepository.create({
+        userId,
+        dateKey,
+        checkInAt: new Date(),
+        checkInLocation: location,
+        checkInSelfieUrl: image.secure_url,
+        checkInSelfiePublicId: image.public_id,
+      });
+    } catch (error) {
+      // Handles simultaneous duplicate check-in requests.
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === 11000
+      ) {
+        throw new Error("Attendance already marked for today");
+      }
+
+      throw error;
+    }
   }
 
-  const image = await imageUploadService.uploadAttendanceSelfie(
-    selfieBuffer,
-  );
+  async checkOut(
+    userId: string,
+    location: Location,
+    selfieBuffer: Buffer,
+  ) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new Error("Invalid user ID");
+    }
 
-  return attendanceRepository.create({
-    userId,
-    dateKey,
-    checkInAt: new Date(),
-    checkInLocation: location,
-    checkInSelfieUrl: image.secure_url,
-    checkInSelfiePublicId: image.public_id,
-  });
-}
+    this.verifyShopLocation(location);
 
-async checkOut(
-  userId: string,
-  location: Location,
-  selfieBuffer: Buffer,
-) {
-  if (!mongoose.isValidObjectId(userId)) {
-    throw new Error("Invalid user ID");
+    const dateKey = this.getTodayKey();
+    const attendance = await attendanceRepository.findToday(
+      userId,
+      dateKey,
+    );
+
+    if (!attendance) {
+      throw new Error("Please check in before checking out");
+    }
+
+    if (attendance.checkOutAt) {
+      throw new Error("You have already checked out");
+    }
+
+    const image = await imageUploadService.uploadAttendanceSelfie(
+      selfieBuffer,
+    );
+
+    const updatedAttendance = await attendanceRepository.checkOut(
+      attendance.id,
+      {
+        checkOutAt: new Date(),
+        checkOutLocation: location,
+        checkOutSelfieUrl: image.secure_url,
+        checkOutSelfiePublicId: image.public_id,
+      },
+    );
+
+    if (!updatedAttendance) {
+      throw new Error("Attendance was already checked out");
+    }
+
+    return this.formatAttendance(updatedAttendance.toObject());
   }
 
-  this.verifyShopLocation(location);
+  async getMyAttendance(userId: string) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new Error("Invalid user ID");
+    }
 
-  const dateKey = this.getTodayKey();
+    const records = await attendanceRepository.findByUserId(userId);
 
-  const attendance = await attendanceRepository.findToday(
-    userId,
-    dateKey,
-  );
-
-  if (!attendance) {
-    throw new Error("Please check in before checking out");
+    return records.map((record) => this.formatAttendance(record));
   }
 
-  if (attendance.checkOutAt) {
-    throw new Error("You have already checked out");
-  }
-
-  const image = await imageUploadService.uploadAttendanceSelfie(
-    selfieBuffer,
-  );
-
-  const updatedAttendance = await attendanceRepository.checkOut(
-    attendance.id,
-    {
-      checkOutAt: new Date(),
-      checkOutLocation: location,
-      checkOutSelfieUrl: image.secure_url,
-      checkOutSelfiePublicId: image.public_id,
-    },
-  );
-
-  if (!updatedAttendance) {
-    throw new Error("Attendance was already checked out");
-  }
-
-  return updatedAttendance;
-}
   async getAllAttendance() {
-    return attendanceRepository.findAll();
+    const records = await attendanceRepository.findAll();
+
+    return records.map((record) => this.formatAttendance(record));
   }
 }
 

@@ -1,3 +1,4 @@
+
 import Attendance from "@/models/attendance.model.js";
 
 class AttendanceRepository {
@@ -15,10 +16,19 @@ class AttendanceRepository {
     return Attendance.create(data);
   }
 
+  // Find one user's attendance for a particular day
   async findToday(userId: string, dateKey: string) {
     return Attendance.findOne({ userId, dateKey });
   }
 
+  // Get attendance history of one staff member
+  async findByUserId(userId: string) {
+    return Attendance.find({ userId })
+      .sort({ checkInAt: -1 })
+      .lean();
+  }
+
+  // Update check-out details only once
   async checkOut(
     id: string,
     data: {
@@ -32,16 +42,24 @@ class AttendanceRepository {
     },
   ) {
     return Attendance.findOneAndUpdate(
-      { _id: id, checkOutAt: { $exists: false } },
+      {
+        _id: id,
+        checkOutAt: { $exists: false },
+      },
       { $set: data },
-      { new: true, runValidators: true },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
   }
 
+  // Admin: Get all staff attendance
   async findAll() {
     return Attendance.find()
       .populate("userId", "name email")
-      .sort({ checkInAt: -1 });
+      .sort({ checkInAt: -1 })
+      .lean();
   }
 }
 

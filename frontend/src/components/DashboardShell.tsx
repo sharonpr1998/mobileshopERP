@@ -13,6 +13,7 @@ const dashboardPaths = [
   "/purchases",
   "/sales",
   "/customers",
+  "/staff",
   "/repairs",
   "/attendance",
   "/rbac",
@@ -32,7 +33,7 @@ export default function DashboardShell({
 
   const showSidebar = dashboardPaths.some(
     (path) =>
-      pathname === path || pathname.startsWith(`${path}/`),
+      pathname === path || pathname.startsWith(`${path}/`)
   );
 
   if (!showSidebar) {

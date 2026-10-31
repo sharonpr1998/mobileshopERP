@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -58,7 +57,7 @@ class AuthService {
               roleId: customerRole._id,
             },
           ],
-          { session }
+          { session },
         );
 
         // Create customer profile linked to User
@@ -72,7 +71,7 @@ class AuthService {
               isActive: true,
             },
           ],
-          { session }
+          { session },
         );
 
         registeredData = {
@@ -103,10 +102,12 @@ class AuthService {
       throw new Error("Invalid email or password");
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    console.log("Login Debug:", {
+      email: user.email,
+      status: user.status,
+      passwordMatched: isPasswordValid,
+    });
 
     if (!isPasswordValid || user.status !== "active") {
       throw new Error("Invalid email or password");
@@ -118,11 +119,9 @@ class AuthService {
       throw new Error("User role is not configured");
     }
 
-    const token = jwt.sign(
-      { sub: user._id.toString() },
-      env.jwtSecret,
-      { expiresIn: "1h" }
-    );
+    const token = jwt.sign({ sub: user._id.toString() }, env.jwtSecret, {
+      expiresIn: "1h",
+    });
 
     const rolePermissions = await RolePermission.find({
       roleId: role._id,
