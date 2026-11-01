@@ -20,7 +20,7 @@ import customerOrderRoutes from "@/routes/customer-order.routes.js";
 import customerRepairRoutes from "@/routes/customer-repair.routes.js";
 import customerProfileRoutes from "@/routes/customer-profile.routes.js";
 import userRoutes from "@/routes/user.routes.js";
-
+import dashboardRoutes from "@/routes/dashboard.routes.js";
 
 const app = express();
 
@@ -51,6 +51,7 @@ app.use("/api/customer", customerOrderRoutes);
 app.use("/api/customer", customerRepairRoutes);
 app.use("/api/customer", customerProfileRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({

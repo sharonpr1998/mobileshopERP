@@ -1,10 +1,7 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
-import StatCard from "@/components/dashboard/StatCard";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 
@@ -27,32 +24,77 @@ type AttendanceSummaryData = {
   overtimeMinutes: number;
 };
 
-const stats = [
-  {
-    title: "Total Sales",
-    value: "₹0",
-    description: "Sales summary will appear here",
-    icon: "₹",
-  },
-  {
-    title: "Total Products",
-    value: "0",
-    description: "Products in your inventory",
-    icon: "▣",
-  },
-  {
-    title: "Customers",
-    value: "0",
-    description: "Registered shop customers",
-    icon: "♙",
-  },
-  {
-    title: "Active Repairs",
-    value: "0",
-    description: "Jobs awaiting completion",
-    icon: "⚙",
-  },
-];
+type DashboardRow = {
+  name?: string;
+  sku?: string;
+  stockQuantity?: number;
+  invoiceNumber?: string;
+  customerName?: string;
+  supplierName?: string;
+  totalAmount?: number;
+  createdAt?: string;
+  status?: string;
+  deviceBrand?: string;
+  deviceModel?: string;
+};
+
+type DashboardData = {
+  overview: {
+    totalSales: number;
+    totalRevenue: number;
+    todayRevenue: number;
+    todaySalesCount: number;
+    monthlySalesCount: number;
+    monthlyRevenue?: number;
+  };
+  inventory: {
+    totalProducts: number;
+    activeProducts: number;
+    lowStockProducts: number;
+    outOfStockProducts: number;
+    totalStockUnits: number;
+    inventoryPurchaseValue: number;
+    lowStockLimit: number;
+  };
+  customers: {
+    total: number;
+    active: number;
+    inactive: number;
+  };
+  repairs: {
+    total: number;
+    received: number;
+    inProgress: number;
+    ready: number;
+    delivered: number;
+    cancelled: number;
+  };
+  purchases: {
+    total: number;
+    todayAmount: number;
+    todayCount: number;
+    monthlyAmount: number;
+    monthlyCount: number;
+  };
+  staff: {
+    total: number;
+    active: number;
+    inactive: number;
+    blocked: number;
+  };
+  attendance: {
+    present: number;
+    notCheckedIn: number;
+    currentlyWorking: number;
+    checkedOut: number;
+    totalWorkingMinutes: number;
+    records?: Array<Record<string, unknown>>;
+  };
+  recentSales: DashboardRow[];
+  recentPurchases: DashboardRow[];
+  recentRepairs: DashboardRow[];
+  lowStockList: DashboardRow[];
+};
 
 const quickLinks = [
   { label: "Add Product", href: "/products", icon: "+" },
@@ -139,8 +181,9 @@ function formatTime(value: string | null) {
 }
 
 function formatDuration(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+  const safeMinutes = Math.max(0, Number(minutes) || 0);
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
 
   return `${String(hours).padStart(2, "0")}h ${String(
     remainingMinutes,
@@ -218,7 +261,7 @@ function AttendanceSummary({ token }: { token: string }) {
           return false;
         });
 
-        if (!todayRecord || !todayRecord.checkInAt) {
+        if (!todayRecord?.checkInAt) {
           setAttendance(null);
           return;
         }
@@ -273,6 +316,7 @@ function AttendanceSummary({ token }: { token: string }) {
           <h2 className="text-lg font-semibold text-gray-900">
             My Attendance
           </h2>
+
           <p className="mt-1 text-sm text-gray-500">
             Your attendance summary for today.
           </p>
@@ -287,14 +331,13 @@ function AttendanceSummary({ token }: { token: string }) {
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-          <p className="text-sm text-gray-500">
-            Loading attendance...
-          </p>
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          Loading attendance...
         </div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-5">
           <p className="text-sm text-red-700">{error}</p>
+
           <p className="mt-1 text-xs text-red-600">
             Please check your attendance permission.
           </p>
@@ -306,6 +349,7 @@ function AttendanceSummary({ token }: { token: string }) {
               <p className="font-semibold text-gray-900">
                 Not Checked In
               </p>
+
               <p className="mt-1 text-sm text-gray-500">
                 You have not marked your attendance today.
               </p>
@@ -326,8 +370,11 @@ function AttendanceSummary({ token }: { token: string }) {
               <p className="text-sm text-gray-500">
                 Today's Attendance
               </p>
+
               <h3 className="mt-1 text-lg font-bold text-gray-900">
-                {completed ? "Attendance Completed" : "Currently Working"}
+                {completed
+                  ? "Attendance Completed"
+                  : "Currently Working"}
               </h3>
             </div>
 
@@ -343,33 +390,23 @@ function AttendanceSummary({ token }: { token: string }) {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg bg-gray-50 p-4">
-              <p className="text-xs text-gray-500">Check-in Time</p>
-              <p className="mt-2 text-lg font-bold text-gray-900">
-                {formatTime(attendance.checkInAt)}
-              </p>
-            </div>
+            {[
+              ["Check-in Time", formatTime(attendance.checkInAt)],
+              ["Check-out Time", formatTime(attendance.checkOutAt)],
+              ["Working Hours", formatDuration(attendance.workedMinutes)],
+              ["Overtime", formatDuration(attendance.overtimeMinutes)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-lg bg-gray-50 p-4"
+              >
+                <p className="text-xs text-gray-500">{label}</p>
 
-            <div className="rounded-lg bg-gray-50 p-4">
-              <p className="text-xs text-gray-500">Check-out Time</p>
-              <p className="mt-2 text-lg font-bold text-gray-900">
-                {formatTime(attendance.checkOutAt)}
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-gray-50 p-4">
-              <p className="text-xs text-gray-500">Working Hours</p>
-              <p className="mt-2 text-lg font-bold text-gray-900">
-                {formatDuration(attendance.workedMinutes)}
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-gray-50 p-4">
-              <p className="text-xs text-gray-500">Overtime</p>
-              <p className="mt-2 text-lg font-bold text-orange-600">
-                {formatDuration(attendance.overtimeMinutes)}
-              </p>
-            </div>
+                <p className="mt-2 text-lg font-bold text-gray-900">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
 
           <div className="mt-5">
@@ -377,6 +414,7 @@ function AttendanceSummary({ token }: { token: string }) {
               <span className="font-medium text-gray-700">
                 8-hour work progress
               </span>
+
               <span className="text-gray-500">
                 {Math.round(progress)}%
               </span>
@@ -432,6 +470,7 @@ function StaffDashboard() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <p className="text-sm text-gray-500">Account Name</p>
+
           <h2 className="mt-2 text-lg font-semibold text-gray-900">
             {user?.name}
           </h2>
@@ -439,6 +478,7 @@ function StaffDashboard() {
 
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <p className="text-sm text-gray-500">Email Address</p>
+
           <h2 className="mt-2 break-all text-sm font-semibold text-gray-900">
             {user?.email}
           </h2>
@@ -446,6 +486,7 @@ function StaffDashboard() {
 
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <p className="text-sm text-gray-500">Account Role</p>
+
           <h2 className="mt-2 text-lg font-semibold capitalize text-blue-600">
             {user?.role?.replace("_", " ")}
           </h2>
@@ -479,6 +520,7 @@ function StaffDashboard() {
                   <p className="font-semibold text-gray-900">
                     {item.label}
                   </p>
+
                   <p className="mt-1 text-xs text-gray-500">
                     Open module
                   </p>
@@ -502,18 +544,449 @@ function StaffDashboard() {
   );
 }
 
-// Existing Super Admin Dashboard
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+}
+
+function formatDate(value?: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(date);
+}
+
+function MetricCard({
+  title,
+  value,
+  description,
+  icon,
+}: {
+  title: string;
+  value: string | number;
+  description: string;
+  icon: string;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-gray-500">
+          {title}
+        </p>
+
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-xl font-bold text-blue-600">
+          {icon}
+        </span>
+      </div>
+
+      <h2 className="mt-4 text-2xl font-bold text-gray-900">
+        {value}
+      </h2>
+
+      <p className="mt-1 text-xs text-gray-500">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function OverviewPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ label: string; value: string | number }>;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <h3 className="mb-4 font-semibold text-gray-900">
+        {title}
+      </h3>
+
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="flex items-center justify-between gap-3 text-sm"
+          >
+            <span className="text-gray-500">
+              {item.label}
+            </span>
+
+            <span className="font-semibold text-gray-900">
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RecentTable({
+  title,
+  href,
+  rows,
+  kind,
+}: {
+  title: string;
+  href: string;
+  rows: DashboardRow[];
+  kind: "sales" | "purchases" | "repairs";
+}) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-gray-900">
+          {title}
+        </h2>
+
+        <Link
+          href={href}
+          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          View all →
+        </Link>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="py-7 text-center text-sm text-gray-500">
+          No records available yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>
+                <th className="p-3">
+                  {kind === "repairs" ? "Device" : "Reference"}
+                </th>
+
+                <th className="p-3">
+                  {kind === "sales"
+                    ? "Customer"
+                    : kind === "purchases"
+                      ? "Supplier"
+                      : "Status"}
+                </th>
+
+                <th className="p-3">
+                  {kind === "repairs" ? "Date" : "Amount"}
+                </th>
+
+                {kind !== "repairs" && (
+                  <th className="p-3">Date</th>
+                )}
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.map((row, index) => (
+                <tr
+                  key={`${row.invoiceNumber ?? row.name ?? "row"}-${index}`}
+                  className="border-b last:border-0"
+                >
+                  <td className="p-3 font-medium text-gray-900">
+                    {kind === "repairs"
+                      ? `${row.deviceBrand ?? ""} ${row.deviceModel ?? ""}`.trim() || "Repair"
+                      : row.invoiceNumber ?? "—"}
+                  </td>
+
+                  <td className="p-3 text-gray-600">
+                    {kind === "sales"
+                      ? row.customerName ?? "Walk-in Customer"
+                      : kind === "purchases"
+                        ? row.supplierName ?? "—"
+                        : row.status ?? "—"}
+                  </td>
+
+                  <td className="p-3 text-gray-700">
+                    {kind === "repairs"
+                      ? formatDate(row.createdAt)
+                      : formatCurrency(row.totalAmount ?? 0)}
+                  </td>
+
+                  {kind !== "repairs" && (
+                    <td className="p-3 text-gray-500">
+                      {formatDate(row.createdAt)}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AdminDashboard() {
+  const { user, token } = useAuth();
+
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setError("Please log in as Super Admin to view dashboard statistics.");
+      return;
+    }
+
+    let cancelled = false;
+
+    apiRequest<{ data: DashboardData }>("/dashboard", {
+      method: "GET",
+      token,
+    })
+      .then((result) => {
+        if (cancelled) return;
+
+        setDashboard(result.data);
+        setError("");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load dashboard data.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+        Loading Super Admin dashboard...
+      </div>
+    );
+  }
+
+  if (error || !dashboard) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+        <h2 className="font-semibold text-red-800">
+          Dashboard data unavailable
+        </h2>
+
+        <p className="mt-1 text-sm text-red-700">
+          {error || "No dashboard data received."}
+        </p>
+
+        <p className="mt-2 text-xs text-red-600">
+          Check the dashboard API response and your Super Admin access.
+        </p>
+      </div>
+    );
+  }
+
+  const cards = [
+    {
+      title: "Total Sales",
+      value: dashboard.overview.totalSales,
+      description: `${dashboard.overview.monthlySalesCount} sales this month`,
+      icon: "₹",
+    },
+    {
+      title: "Monthly Revenue",
+      value: formatCurrency(
+        dashboard.overview.monthlyRevenue ??
+          dashboard.overview.totalRevenue,
+      ),
+      description: `Today: ${formatCurrency(dashboard.overview.todayRevenue)}`,
+      icon: "↗",
+    },
+    {
+      title: "Total Products",
+      value: dashboard.inventory.totalProducts,
+      description: `${dashboard.inventory.totalStockUnits} units in stock`,
+      icon: "▣",
+    },
+    {
+      title: "Total Customers",
+      value: dashboard.customers.total,
+      description: `${dashboard.customers.active} active customers`,
+      icon: "♙",
+    },
+  ];
+
+  const panels = [
+    {
+      title: "Inventory Overview",
+      items: [
+        {
+          label: "Active Products",
+          value: dashboard.inventory.activeProducts,
+        },
+        {
+          label: "Low Stock",
+          value: dashboard.inventory.lowStockProducts,
+        },
+        {
+          label: "Out of Stock",
+          value: dashboard.inventory.outOfStockProducts,
+        },
+        {
+          label: "Stock Units",
+          value: dashboard.inventory.totalStockUnits,
+        },
+      ],
+    },
+    {
+      title: "Customer Overview",
+      items: [
+        {
+          label: "Total Customers",
+          value: dashboard.customers.total,
+        },
+        {
+          label: "Active Customers",
+          value: dashboard.customers.active,
+        },
+        {
+          label: "Inactive Customers",
+          value: dashboard.customers.inactive,
+        },
+      ],
+    },
+    {
+      title: "Staff Overview",
+      items: [
+        {
+          label: "Total Staff",
+          value: dashboard.staff.total,
+        },
+        {
+          label: "Active Staff",
+          value: dashboard.staff.active,
+        },
+        {
+          label: "Inactive Staff",
+          value: dashboard.staff.inactive,
+        },
+        {
+          label: "Blocked Staff",
+          value: dashboard.staff.blocked,
+        },
+      ],
+    },
+    {
+      title: "Repair Overview",
+      items: [
+        {
+          label: "Total Repairs",
+          value: dashboard.repairs.total,
+        },
+        {
+          label: "Received",
+          value: dashboard.repairs.received,
+        },
+        {
+          label: "In Progress",
+          value: dashboard.repairs.inProgress,
+        },
+        {
+          label: "Ready",
+          value: dashboard.repairs.ready,
+        },
+        {
+          label: "Delivered",
+          value: dashboard.repairs.delivered,
+        },
+        {
+          label: "Cancelled",
+          value: dashboard.repairs.cancelled,
+        },
+      ],
+    },
+    {
+      title: "Today's Attendance",
+      items: [
+        {
+          label: "Present",
+          value: dashboard.attendance.present,
+        },
+        {
+          label: "Not Checked In",
+          value: dashboard.attendance.notCheckedIn,
+        },
+        {
+          label: "Currently Working",
+          value: dashboard.attendance.currentlyWorking,
+        },
+        {
+          label: "Checked Out",
+          value: dashboard.attendance.checkedOut,
+        },
+        {
+          label: "Working Hours",
+          value: formatDuration(
+            dashboard.attendance.totalWorkingMinutes,
+          ),
+        },
+      ],
+    },
+    {
+      title: "Purchase Overview",
+      items: [
+        {
+          label: "Total Purchases",
+          value: dashboard.purchases.total,
+        },
+        {
+          label: "Today's Purchases",
+          value: dashboard.purchases.todayCount,
+        },
+        {
+          label: "Today's Amount",
+          value: formatCurrency(dashboard.purchases.todayAmount),
+        },
+        {
+          label: "Monthly Purchases",
+          value: dashboard.purchases.monthlyCount,
+        },
+        {
+          label: "Monthly Amount",
+          value: formatCurrency(dashboard.purchases.monthlyAmount),
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Dashboard
+            Welcome, {user?.name || "Super Admin"}!
           </h1>
 
           <p className="mt-1 text-sm text-gray-500">
-            Welcome to your mobile shop management workspace.
+            Here's your mobile shop business overview.
           </p>
         </div>
 
@@ -526,88 +999,181 @@ function AdminDashboard() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat} />
+        {cards.map((card) => (
+          <MetricCard key={card.title} {...card} />
         ))}
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Quick Actions
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <p className="text-sm text-gray-500">
+            Today's Sales Revenue
+          </p>
+
+          <h2 className="mt-2 text-2xl font-bold text-green-600">
+            {formatCurrency(dashboard.overview.todayRevenue)}
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            {dashboard.overview.todaySalesCount} sales today
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <p className="text-sm text-gray-500">
+            Current Inventory Purchase Value
+          </p>
+
+          <h2 className="mt-2 text-2xl font-bold text-gray-900">
+            {formatCurrency(
+              dashboard.inventory.inventoryPurchaseValue,
+            )}
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Current stock quantity × purchase price
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          Business Overview
         </h2>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {quickLinks.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="group flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-sm"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-xl font-semibold text-blue-700">
-                {item.icon}
-              </span>
-
-              <div>
-                <p className="font-semibold text-gray-900">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Open module
-                </p>
-              </div>
-            </Link>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {panels.map((panel) => (
+            <OverviewPanel key={panel.title} {...panel} />
           ))}
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex items-center justify-between">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {quickLinks.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-sm"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-xl font-semibold text-blue-700">
+              {item.icon}
+            </span>
+
+            <div>
+              <p className="font-semibold text-gray-900">
+                {item.label}
+              </p>
+
+              <p className="mt-1 text-xs text-gray-500">
+                Open module
+              </p>
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
             <h2 className="font-semibold text-gray-900">
               Low Stock Products
             </h2>
 
-            <Link
-              href="/stock"
-              className="text-sm font-medium text-blue-600 hover:text-blue-700"
-            >
-              View stock
-            </Link>
+            <p className="mt-1 text-xs text-gray-500">
+              Products at or below {dashboard.inventory.lowStockLimit} units
+            </p>
           </div>
 
-          <div className="mt-6 rounded-lg bg-gray-50 px-4 py-8 text-center">
-            <p className="font-medium text-gray-700">
-              No inventory data loaded
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Connect the product API to display low-stock items.
-            </p>
-          </div>
+          <Link
+            href="/products"
+            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          >
+            View Products →
+          </Link>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">
-              Recent Sales
-            </h2>
+        {dashboard.lowStockList.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">
+            No low-stock products.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[500px] text-left text-sm">
+              <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
+                <tr>
+                  <th className="p-3">Product</th>
+                  <th className="p-3">SKU</th>
+                  <th className="p-3">Stock Quantity</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
 
-            <Link
-              href="/sales"
-              className="text-sm font-medium text-blue-600 hover:text-blue-700"
-            >
-              View sales
-            </Link>
-          </div>
+              <tbody>
+                {dashboard.lowStockList.map((product, index) => {
+                  const quantity = Number(
+                    product.stockQuantity ?? 0,
+                  );
 
-          <div className="mt-6 rounded-lg bg-gray-50 px-4 py-8 text-center">
-            <p className="font-medium text-gray-700">
-              No sales data loaded
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Connect the sales API to display recent transactions.
-            </p>
+                  return (
+                    <tr
+                      key={`${product.sku ?? product.name ?? "product"}-${index}`}
+                      className="border-b last:border-0"
+                    >
+                      <td className="p-3 font-medium text-gray-900">
+                        {product.name ?? "—"}
+                      </td>
+
+                      <td className="p-3 text-gray-500">
+                        {product.sku ?? "—"}
+                      </td>
+
+                      <td className="p-3 font-semibold text-gray-900">
+                        {quantity}
+                      </td>
+
+                      <td className="p-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            quantity === 0
+                              ? "bg-red-100 text-red-700"
+                              : "bg-orange-100 text-orange-700"
+                          }`}
+                        >
+                          {quantity === 0
+                            ? "Out of Stock"
+                            : "Low Stock"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <RecentTable
+          title="Recent Sales"
+          href="/sales"
+          rows={dashboard.recentSales}
+          kind="sales"
+        />
+
+        <RecentTable
+          title="Recent Purchases"
+          href="/purchases"
+          rows={dashboard.recentPurchases}
+          kind="purchases"
+        />
+
+        <RecentTable
+          title="Recent Repairs"
+          href="/repairs"
+          rows={dashboard.recentRepairs}
+          kind="repairs"
+        />
       </section>
     </div>
   );
@@ -626,6 +1192,20 @@ export default function DashboardContent() {
 
   if (user?.role?.toLowerCase() === "staff") {
     return <StaffDashboard />;
+  }
+
+  if (user?.role?.toLowerCase() === "customer") {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <h1 className="text-xl font-bold text-gray-900">
+          Customer Dashboard
+        </h1>
+
+        <p className="mt-2 text-sm text-gray-500">
+          Please open your customer portal to view your orders and repairs.
+        </p>
+      </div>
+    );
   }
 
   return <AdminDashboard />;

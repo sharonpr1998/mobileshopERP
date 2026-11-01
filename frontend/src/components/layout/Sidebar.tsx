@@ -173,14 +173,27 @@ export default function Sidebar() {
           );
         })}
 
+        {/* Attendance Management - Super Admin Only */}
+        {isSuperAdmin && (
+          <Link
+            href="/dashboard/attendance"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+              pathname === "/dashboard/attendance"
+                ? "bg-blue-600 font-medium text-white"
+                : "hover:bg-gray-900 hover:text-white"
+            }`}
+          >
+            <span className="w-5 text-center">▦</span>
+            Attendance Management
+          </Link>
+        )}
+
         {/* RBAC - Super Admin Only */}
         {isSuperAdmin && (
           <div className="pt-2">
             <button
               type="button"
-              onClick={() =>
-                setRbacOpen((open) => !open)
-              }
+              onClick={() => setRbacOpen((open) => !open)}
               aria-expanded={rbacOpen}
               className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition ${
                 isRbacActive

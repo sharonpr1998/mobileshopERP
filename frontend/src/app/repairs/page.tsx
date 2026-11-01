@@ -82,16 +82,12 @@ function unwrapData<T>(response: unknown): T {
 }
 
 function getList<T>(value: unknown, key: string): T[] {
-  if (Array.isArray(value)) {
-    return value as T[];
-  }
+  if (Array.isArray(value)) return value as T[];
 
   if (value && typeof value === "object") {
     const result = value as Record<string, unknown>;
 
-    if (Array.isArray(result[key])) {
-      return result[key] as T[];
-    }
+    if (Array.isArray(result[key])) return result[key] as T[];
 
     if (result.data !== undefined) {
       return getList<T>(result.data, key);
@@ -138,15 +134,10 @@ function getStatusStyle(status: RepairStatus): string {
   return styles[status];
 }
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "");
-}
-
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
-const labelClass =
-  "mb-1.5 block text-sm font-medium text-gray-700";
+const labelClass = "mb-1.5 block text-sm font-medium text-gray-700";
 
 export default function RepairsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -158,7 +149,6 @@ export default function RepairsPage() {
     useState<Customer | null>(null);
   const [showCustomerSuggestions, setShowCustomerSuggestions] =
     useState(false);
-
   const [addingCustomer, setAddingCustomer] = useState(false);
   const [newCustomer, setNewCustomer] =
     useState<NewCustomerForm>(emptyCustomerForm);
@@ -173,6 +163,12 @@ export default function RepairsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Twilio SMS testing states
+  const [testPhone, setTestPhone] = useState("");
+  const [testingSms, setTestingSms] = useState(false);
+  const [smsMessage, setSmsMessage] = useState("");
+  const [smsError, setSmsError] = useState("");
+
   const loadData = useCallback(async () => {
     try {
       const [customerResponse, repairResponse] = await Promise.all([
@@ -181,19 +177,10 @@ export default function RepairsPage() {
       ]);
 
       setCustomers(
-        getList<Customer>(
-          unwrapData(customerResponse),
-          "customers",
-        ),
+        getList<Customer>(unwrapData(customerResponse), "customers"),
       );
 
-      setRepairs(
-        getList<Repair>(
-          unwrapData(repairResponse),
-          "repairs",
-        ),
-      );
-
+      setRepairs(getList<Repair>(unwrapData(repairResponse), "repairs"));
       setError("");
     } catch (err) {
       setError(
@@ -207,17 +194,12 @@ export default function RepairsPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadData();
-    }, 0);
+    const timer = setTimeout(() => void loadData(), 0);
 
     return () => clearTimeout(timer);
   }, [loadData]);
 
-  function updateForm(
-    field: keyof RepairForm,
-    value: string,
-  ) {
+  function updateForm(field: keyof RepairForm, value: string) {
     setForm((previous) => ({
       ...previous,
       [field]: value,
@@ -238,9 +220,7 @@ export default function RepairsPage() {
     .filter((customer) => {
       const query = customerSearch.trim().toLowerCase();
 
-      if (!query) {
-        return false;
-      }
+      if (!query) return false;
 
       return (
         customer.name.toLowerCase().includes(query) ||
@@ -252,17 +232,14 @@ export default function RepairsPage() {
   const duplicatePhoneCustomer = newCustomer.phone.trim()
     ? customers.find(
         (customer) =>
-          normalizePhone(customer.phone) ===
-          normalizePhone(newCustomer.phone),
+          customer.phone.replace(/\D/g, "") ===
+          newCustomer.phone.replace(/\D/g, ""),
       )
     : undefined;
 
   function chooseCustomer(customer: Customer) {
     setSelectedCustomer(customer);
-
-    setCustomerSearch(
-      `${customer.name} — ${customer.phone}`,
-    );
+    setCustomerSearch(`${customer.name} — ${customer.phone}`);
 
     setForm((previous) => ({
       ...previous,
@@ -292,7 +269,7 @@ export default function RepairsPage() {
     if (!addingCustomer) {
       if (!form.customerId) {
         throw new Error(
-          "Please select an existing customer or add a new customer.",
+          "Please select a customer or add a new one.",
         );
       }
 
@@ -312,7 +289,8 @@ export default function RepairsPage() {
 
     const existingByPhone = customers.find(
       (customer) =>
-        normalizePhone(customer.phone) === normalizePhone(phone),
+        customer.phone.replace(/\D/g, "") ===
+        phone.replace(/\D/g, ""),
     );
 
     if (existingByPhone) {
@@ -339,16 +317,9 @@ export default function RepairsPage() {
       );
     }
 
-    setCustomers((previous) => [
-      created,
-      ...previous,
-    ]);
-
+    setCustomers((previous) => [created, ...previous]);
     setSelectedCustomer(created);
-
-    setCustomerSearch(
-      `${created.name} — ${created.phone}`,
-    );
+    setCustomerSearch(`${created.name} — ${created.phone}`);
 
     setForm((previous) => ({
       ...previous,
@@ -376,32 +347,20 @@ export default function RepairsPage() {
       return;
     }
 
-    if (
-      !form.deviceBrand.trim() ||
-      !form.deviceModel.trim()
-    ) {
-      setError(
-        "Please enter the device brand and model.",
-      );
+    if (!form.deviceBrand.trim() || !form.deviceModel.trim()) {
+      setError("Please enter the device brand and model.");
       return;
     }
 
     if (!form.issue.trim()) {
-      setError(
-        "Please describe the device issue.",
-      );
+      setError("Please describe the device issue.");
       return;
     }
 
     const estimatedCost = Number(form.estimatedCost);
 
-    if (
-      !Number.isFinite(estimatedCost) ||
-      estimatedCost < 0
-    ) {
-      setError(
-        "Estimated cost must be zero or greater.",
-      );
+    if (!Number.isFinite(estimatedCost) || estimatedCost < 0) {
+      setError("Estimated cost must be zero or greater.");
       return;
     }
 
@@ -428,9 +387,7 @@ export default function RepairsPage() {
       setAddingCustomer(false);
       setNewCustomer(emptyCustomerForm);
 
-      setSuccess(
-        "Repair job created successfully.",
-      );
+      setSuccess("Repair job created successfully.");
 
       await loadData();
     } catch (err) {
@@ -453,17 +410,12 @@ export default function RepairsPage() {
     setUpdatingId(repairId);
 
     try {
-      await apiRequest<unknown>(
-        `/repairs/${repairId}/status`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ status }),
-        },
-      );
+      await apiRequest<unknown>(`/repairs/${repairId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
 
-      setSuccess(
-        "Repair status updated successfully.",
-      );
+      setSuccess("Repair status updated successfully.");
 
       await loadData();
     } catch (err) {
@@ -477,275 +429,302 @@ export default function RepairsPage() {
     }
   }
 
+  // Send test SMS through backend
+  async function handleTestSms(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    setSmsMessage("");
+    setSmsError("");
+
+    const phone = testPhone.trim();
+
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      setSmsError(
+        "Enter a valid phone number with country code. Example: +919876543210",
+      );
+      return;
+    }
+
+    setTestingSms(true);
+
+    try {
+      const response = await apiRequest<{
+        success: boolean;
+        message: string;
+        data?: {
+          messageSid: string;
+        };
+      }>("/repairs/test-sms", {
+        method: "POST",
+        body: JSON.stringify({ phone }),
+      });
+
+      setSmsMessage(
+        response.message ||
+          "Test SMS submitted successfully to Twilio.",
+      );
+    } catch (err) {
+      setSmsError(
+        err instanceof Error
+          ? err.message
+          : "Failed to send test SMS.",
+      );
+    } finally {
+      setTestingSms(false);
+    }
+  }
+
   const filteredRepairs = repairs.filter((repair) => {
     const customer = getCustomer(repair);
+    const query = search.trim().toLowerCase();
 
-    const searchText = [
-      customer?.name,
-      customer?.phone,
-      repair.deviceBrand,
-      repair.deviceModel,
-      repair.imei,
-      repair.issue,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    const matchesSearch = searchText.includes(
-      search.trim().toLowerCase(),
-    );
+    const matchesSearch =
+      !query ||
+      customer?.name?.toLowerCase().includes(query) ||
+      customer?.phone?.toLowerCase().includes(query) ||
+      repair.deviceBrand.toLowerCase().includes(query) ||
+      repair.deviceModel.toLowerCase().includes(query) ||
+      repair.imei?.toLowerCase().includes(query) ||
+      repair.issue.toLowerCase().includes(query);
 
     const matchesStatus =
-      statusFilter === "all" ||
-      repair.status === statusFilter;
+      statusFilter === "all" || repair.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    return Boolean(matchesSearch && matchesStatus);
   });
 
-  const activeRepairs = repairs.filter(
-    (repair) =>
-      repair.status === "received" ||
-      repair.status === "in_progress",
+  const totalRepairs = repairs.length;
+
+  const receivedCount = repairs.filter(
+    (repair) => repair.status === "received",
   ).length;
 
-  const readyRepairs = repairs.filter(
+  const inProgressCount = repairs.filter(
+    (repair) => repair.status === "in_progress",
+  ).length;
+
+  const readyCount = repairs.filter(
     (repair) => repair.status === "ready",
-  ).length;
-
-  const deliveredRepairs = repairs.filter(
-    (repair) => repair.status === "delivered",
   ).length;
 
   return (
     <main className="space-y-6 p-4 text-gray-900 sm:p-6">
       <header>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-gray-900">
           Repair Management
         </h1>
 
-        <p className="mt-1 text-sm text-gray-500">
-          Register repairs, manage customers, track devices,
-          and update repair status.
+        <p className="mt-1 text-sm text-gray-600">
+          Manage customer repairs, track repair status and send SMS
+          notifications.
         </p>
       </header>
 
-      {error && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+      {/* Twilio SMS Testing */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Twilio SMS Testing
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-600">
+            Send a test SMS to your verified mobile number.
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleTestSms}
+          className="flex flex-col gap-3 sm:flex-row"
         >
+          <input
+            type="tel"
+            value={testPhone}
+            onChange={(event) => setTestPhone(event.target.value)}
+            placeholder="+919876543210"
+            required
+            className={inputClass}
+          />
+
+          <button
+            type="submit"
+            disabled={testingSms}
+            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {testingSms ? "Sending SMS..." : "Send Test SMS"}
+          </button>
+        </form>
+
+        {smsMessage && (
+          <p
+            role="status"
+            className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-medium text-green-800"
+          >
+            {smsMessage}
+          </p>
+        )}
+
+        {smsError && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800"
+          >
+            {smsError}
+          </p>
+        )}
+
+        <p className="mt-3 text-xs text-gray-500">
+          Use your verified Twilio recipient number with country code.
+          Example: +919876543210
+        </p>
+      </section>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {success && (
-        <div
-          role="status"
-          className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700"
-        >
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           {success}
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: "Total Repairs",
-            value: repairs.length,
-          },
-          {
-            label: "Active Repairs",
-            value: activeRepairs,
-          },
-          {
-            label: "Ready for Pickup",
-            value: readyRepairs,
-          },
-          {
-            label: "Delivered",
-            value: deliveredRepairs,
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-sm text-gray-500">
-              {item.label}
-            </p>
+      {/* Summary Cards */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">Total Repairs</p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">
+            {totalRepairs}
+          </p>
+        </div>
 
-            <p className="mt-2 text-2xl font-bold">
-              {item.value}
-            </p>
-          </div>
-        ))}
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">Received</p>
+          <p className="mt-2 text-2xl font-bold text-blue-600">
+            {receivedCount}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">In Progress</p>
+          <p className="mt-2 text-2xl font-bold text-amber-600">
+            {inProgressCount}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">Ready for Pickup</p>
+          <p className="mt-2 text-2xl font-bold text-green-600">
+            {readyCount}
+          </p>
+        </div>
       </section>
 
+      {/* Create Repair */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-5">
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-lg font-semibold text-gray-900">
             Create Repair Job
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Search for an existing customer or add a new
-            customer without leaving this page.
+            Select an existing customer or add a new customer.
           </p>
         </div>
 
-        <form
-          onSubmit={handleCreateRepair}
-          className="space-y-5"
-        >
-          <div>
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-              <label
-                htmlFor="repairCustomerSearch"
-                className={labelClass}
+        <form onSubmit={handleCreateRepair} className="space-y-5">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className={labelClass}>Customer *</label>
+
+              <button
+                type="button"
+                onClick={startAddingCustomer}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
               >
-                Customer *
-              </label>
-
-              {!addingCustomer && (
-                <button
-                  type="button"
-                  onClick={startAddingCustomer}
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  + Add New Customer
-                </button>
-              )}
-
-              {addingCustomer && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingCustomer(false);
-                    setNewCustomer(emptyCustomerForm);
-                  }}
-                  className="text-sm font-semibold text-gray-600 hover:text-gray-800"
-                >
-                  Choose Existing Customer
-                </button>
-              )}
+                + Add New Customer
+              </button>
             </div>
 
             {!addingCustomer ? (
               <div className="relative">
                 <input
-                  id="repairCustomerSearch"
+                  type="text"
                   value={customerSearch}
                   onChange={(event) => {
-                    const value = event.target.value;
-
-                    setCustomerSearch(value);
+                    setCustomerSearch(event.target.value);
+                    setSelectedCustomer(null);
+                    setForm((previous) => ({
+                      ...previous,
+                      customerId: "",
+                    }));
                     setShowCustomerSuggestions(true);
-
-                    if (
-                      selectedCustomer &&
-                      value !==
-                        `${selectedCustomer.name} — ${selectedCustomer.phone}`
-                    ) {
-                      setSelectedCustomer(null);
-
-                      setForm((previous) => ({
-                        ...previous,
-                        customerId: "",
-                      }));
-                    }
                   }}
-                  onFocus={() =>
-                    setShowCustomerSuggestions(true)
-                  }
-                  onBlur={() =>
-                    setTimeout(
-                      () =>
-                        setShowCustomerSuggestions(false),
-                      150,
-                    )
-                  }
-                  placeholder="Type customer name or phone number..."
-                  autoComplete="off"
+                  onFocus={() => setShowCustomerSuggestions(true)}
+                  placeholder="Search customer by name or phone..."
                   className={inputClass}
                 />
 
                 {showCustomerSuggestions &&
-                  customerSearch.trim() && (
-                    <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                      {matchingCustomers.length > 0 ? (
-                        matchingCustomers.map((customer) => (
-                          <button
-                            type="button"
-                            key={customer._id}
-                            onMouseDown={(event) =>
-                              event.preventDefault()
-                            }
-                            onClick={() =>
-                              chooseCustomer(customer)
-                            }
-                            className="block w-full border-b border-gray-100 px-3 py-3 text-left last:border-b-0 hover:bg-blue-50"
-                          >
-                            <span className="block text-sm font-medium text-gray-900">
-                              {customer.name}
-                            </span>
-
-                            <span className="block text-xs text-gray-500">
-                              {customer.phone}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-3 py-3 text-sm text-gray-500">
-                          No matching customer found.
-                        </p>
-                      )}
-
-                      <button
-                        type="button"
-                        onMouseDown={(event) =>
-                          event.preventDefault()
-                        }
-                        onClick={startAddingCustomer}
-                        className="block w-full bg-blue-50 px-3 py-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-100"
-                      >
-                        + Add a new customer
-                      </button>
+                  matchingCustomers.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {matchingCustomers.map((customer) => (
+                        <button
+                          key={customer._id}
+                          type="button"
+                          onClick={() => chooseCustomer(customer)}
+                          className="block w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+                        >
+                          <p className="font-medium text-gray-900">
+                            {customer.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {customer.phone}
+                          </p>
+                        </button>
+                      ))}
                     </div>
                   )}
 
                 {selectedCustomer && (
                   <p className="mt-2 text-sm text-green-700">
-                    Selected: {selectedCustomer.name} (
-                    {selectedCustomer.phone})
+                    Selected: {selectedCustomer.name}
                   </p>
                 )}
               </div>
             ) : (
               <div className="space-y-4 rounded-lg border border-blue-100 bg-blue-50/50 p-4">
-                <p className="text-sm font-medium text-gray-800">
-                  New Customer Details
-                </p>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">
+                    New Customer Details
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingCustomer(false);
+                      setNewCustomer(emptyCustomerForm);
+                    }}
+                    className="text-sm font-medium text-red-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label
-                      htmlFor="newCustomerName"
-                      className={labelClass}
-                    >
+                    <label htmlFor="newCustomerName" className={labelClass}>
                       Customer Name *
                     </label>
-
                     <input
                       id="newCustomerName"
                       required
-                      maxLength={100}
                       value={newCustomer.name}
                       onChange={(event) =>
-                        updateNewCustomer(
-                          "name",
-                          event.target.value,
-                        )
+                        updateNewCustomer("name", event.target.value)
                       }
                       placeholder="Enter customer name"
                       className={inputClass}
@@ -753,23 +732,16 @@ export default function RepairsPage() {
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="newCustomerPhone"
-                      className={labelClass}
-                    >
+                    <label htmlFor="newCustomerPhone" className={labelClass}>
                       Phone Number *
                     </label>
-
                     <input
                       id="newCustomerPhone"
+                      type="tel"
                       required
-                      maxLength={20}
                       value={newCustomer.phone}
                       onChange={(event) =>
-                        updateNewCustomer(
-                          "phone",
-                          event.target.value,
-                        )
+                        updateNewCustomer("phone", event.target.value)
                       }
                       placeholder="Enter phone number for SMS"
                       className={inputClass}
@@ -778,18 +750,14 @@ export default function RepairsPage() {
                     {duplicatePhoneCustomer && (
                       <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
                         This phone number already belongs to{" "}
-                        <strong>
-                          {duplicatePhoneCustomer.name}
-                        </strong>
-                        . We will use that existing customer
-                        instead of creating a duplicate.
+                        <strong>{duplicatePhoneCustomer.name}</strong>. We
+                        will use that existing customer instead of creating
+                        a duplicate.
 
                         <button
                           type="button"
                           onClick={() =>
-                            chooseCustomer(
-                              duplicatePhoneCustomer,
-                            )
+                            chooseCustomer(duplicatePhoneCustomer)
                           }
                           className="mt-1 block font-semibold underline"
                         >
@@ -800,22 +768,15 @@ export default function RepairsPage() {
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="newCustomerEmail"
-                      className={labelClass}
-                    >
+                    <label htmlFor="newCustomerEmail" className={labelClass}>
                       Email (optional)
                     </label>
-
                     <input
                       id="newCustomerEmail"
                       type="email"
                       value={newCustomer.email}
                       onChange={(event) =>
-                        updateNewCustomer(
-                          "email",
-                          event.target.value,
-                        )
+                        updateNewCustomer("email", event.target.value)
                       }
                       placeholder="name@example.com"
                       className={inputClass}
@@ -823,21 +784,14 @@ export default function RepairsPage() {
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="newCustomerAddress"
-                      className={labelClass}
-                    >
+                    <label htmlFor="newCustomerAddress" className={labelClass}>
                       Address (optional)
                     </label>
-
                     <input
                       id="newCustomerAddress"
                       value={newCustomer.address}
                       onChange={(event) =>
-                        updateNewCustomer(
-                          "address",
-                          event.target.value,
-                        )
+                        updateNewCustomer("address", event.target.value)
                       }
                       placeholder="Customer address"
                       className={inputClass}
@@ -845,22 +799,15 @@ export default function RepairsPage() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label
-                      htmlFor="newCustomerNotes"
-                      className={labelClass}
-                    >
+                    <label htmlFor="newCustomerNotes" className={labelClass}>
                       Notes (optional)
                     </label>
-
                     <textarea
                       id="newCustomerNotes"
                       rows={2}
                       value={newCustomer.notes}
                       onChange={(event) =>
-                        updateNewCustomer(
-                          "notes",
-                          event.target.value,
-                        )
+                        updateNewCustomer("notes", event.target.value)
                       }
                       placeholder="Additional customer notes"
                       className={inputClass}
@@ -869,8 +816,8 @@ export default function RepairsPage() {
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  Customers with the same phone number are
-                  reused to help prevent duplicate records.
+                  Customers with the same phone number are reused to help
+                  prevent duplicate records.
                 </p>
               </div>
             )}
@@ -878,23 +825,16 @@ export default function RepairsPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label
-                htmlFor="deviceBrand"
-                className={labelClass}
-              >
+              <label htmlFor="deviceBrand" className={labelClass}>
                 Device Brand *
               </label>
-
               <input
                 id="deviceBrand"
                 required
                 maxLength={100}
                 value={form.deviceBrand}
                 onChange={(event) =>
-                  updateForm(
-                    "deviceBrand",
-                    event.target.value,
-                  )
+                  updateForm("deviceBrand", event.target.value)
                 }
                 placeholder="e.g. Samsung, Apple, Redmi"
                 className={inputClass}
@@ -902,23 +842,16 @@ export default function RepairsPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="deviceModel"
-                className={labelClass}
-              >
+              <label htmlFor="deviceModel" className={labelClass}>
                 Device Model *
               </label>
-
               <input
                 id="deviceModel"
                 required
                 maxLength={100}
                 value={form.deviceModel}
                 onChange={(event) =>
-                  updateForm(
-                    "deviceModel",
-                    event.target.value,
-                  )
+                  updateForm("deviceModel", event.target.value)
                 }
                 placeholder="e.g. Galaxy S24, iPhone 15"
                 className={inputClass}
@@ -926,13 +859,9 @@ export default function RepairsPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="imei"
-                className={labelClass}
-              >
+              <label htmlFor="imei" className={labelClass}>
                 IMEI / Serial Number
               </label>
-
               <input
                 id="imei"
                 maxLength={50}
@@ -946,13 +875,9 @@ export default function RepairsPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="estimatedCost"
-                className={labelClass}
-              >
+              <label htmlFor="estimatedCost" className={labelClass}>
                 Estimated Cost (₹) *
               </label>
-
               <input
                 id="estimatedCost"
                 type="number"
@@ -961,10 +886,7 @@ export default function RepairsPage() {
                 step="0.01"
                 value={form.estimatedCost}
                 onChange={(event) =>
-                  updateForm(
-                    "estimatedCost",
-                    event.target.value,
-                  )
+                  updateForm("estimatedCost", event.target.value)
                 }
                 className={inputClass}
               />
@@ -972,13 +894,9 @@ export default function RepairsPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="issue"
-              className={labelClass}
-            >
+            <label htmlFor="issue" className={labelClass}>
               Customer Complaint / Device Issue *
             </label>
-
             <textarea
               id="issue"
               required
@@ -991,7 +909,6 @@ export default function RepairsPage() {
               placeholder="Describe the problem, e.g. display damaged, battery draining..."
               className={inputClass}
             />
-
             <p className="mt-1 text-right text-xs text-gray-500">
               {form.issue.length}/1000
             </p>
@@ -1007,7 +924,6 @@ export default function RepairsPage() {
                 setSelectedCustomer(null);
                 setAddingCustomer(false);
                 setNewCustomer(emptyCustomerForm);
-                setShowCustomerSuggestions(false);
                 setError("");
                 setSuccess("");
               }}
@@ -1018,27 +934,22 @@ export default function RepairsPage() {
 
             <button
               type="submit"
-              disabled={
-                saving ||
-                (!addingCustomer && customers.length === 0)
-              }
+              disabled={saving || (!addingCustomer && customers.length === 0)}
               className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving
-                ? "Creating Repair..."
-                : "Create Repair Job"}
+              {saving ? "Creating Repair..." : "Create Repair Job"}
             </button>
           </div>
         </form>
       </section>
 
+      {/* Repair History */}
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="space-y-4 border-b border-gray-200 p-5">
           <div>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-lg font-semibold text-gray-900">
               Repair History
             </h2>
-
             <p className="mt-1 text-sm text-gray-500">
               Search repair jobs and update their status.
             </p>
@@ -1048,22 +959,17 @@ export default function RepairsPage() {
             <input
               type="search"
               value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search customer, phone, model, IMEI..."
               className={inputClass}
             />
 
             <select
               value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value)
-              }
+              onChange={(event) => setStatusFilter(event.target.value)}
               className={inputClass}
             >
               <option value="all">All statuses</option>
-
               {statuses.map((status) => (
                 <option key={status} value={status}>
                   {getStatusLabel(status)}
@@ -1086,33 +992,13 @@ export default function RepairsPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="px-4 py-3 font-medium">
-                    Customer
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Device
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Issue
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Est. Cost
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Status
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Date
-                  </th>
-
-                  <th className="px-4 py-3 font-medium">
-                    Update Status
-                  </th>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Device</th>
+                  <th className="px-4 py-3 font-medium">Issue</th>
+                  <th className="px-4 py-3 font-medium">Est. Cost</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Update Status</th>
                 </tr>
               </thead>
 
@@ -1130,22 +1016,18 @@ export default function RepairsPage() {
                       className="align-top hover:bg-gray-50"
                     >
                       <td className="px-4 py-4">
-                        <p className="font-medium">
+                        <p className="font-medium text-gray-900">
                           {customer?.name || "Customer"}
                         </p>
-
                         <p className="mt-1 text-xs text-gray-500">
-                          {customer?.phone ||
-                            "Phone unavailable"}
+                          {customer?.phone || "Phone unavailable"}
                         </p>
                       </td>
 
                       <td className="px-4 py-4">
-                        <p className="font-medium">
-                          {repair.deviceBrand}{" "}
-                          {repair.deviceModel}
+                        <p className="font-medium text-gray-900">
+                          {repair.deviceBrand} {repair.deviceModel}
                         </p>
-
                         {repair.imei && (
                           <p className="mt-1 text-xs text-gray-500">
                             IMEI: {repair.imei}
@@ -1153,11 +1035,11 @@ export default function RepairsPage() {
                         )}
                       </td>
 
-                      <td className="max-w-xs whitespace-pre-wrap px-4 py-4">
+                      <td className="max-w-xs whitespace-pre-wrap px-4 py-4 text-gray-900">
                         {repair.issue}
                       </td>
 
-                      <td className="whitespace-nowrap px-4 py-4 font-medium">
+                      <td className="whitespace-nowrap px-4 py-4 font-medium text-gray-900">
                         {formatPrice(repair.estimatedCost)}
                       </td>
 
@@ -1171,9 +1053,9 @@ export default function RepairsPage() {
 
                       <td className="whitespace-nowrap px-4 py-4 text-gray-500">
                         {repair.createdAt
-                          ? new Date(
-                              repair.createdAt,
-                            ).toLocaleDateString("en-IN")
+                          ? new Date(repair.createdAt).toLocaleDateString(
+                              "en-IN",
+                            )
                           : "—"}
                       </td>
 
@@ -1185,9 +1067,7 @@ export default function RepairsPage() {
                         ) : (
                           <select
                             value={repair.status}
-                            disabled={
-                              updatingId === repair._id
-                            }
+                            disabled={updatingId === repair._id}
                             onChange={(event) =>
                               void handleStatusUpdate(
                                 repair._id,
@@ -1197,10 +1077,7 @@ export default function RepairsPage() {
                             className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 disabled:opacity-50"
                           >
                             {statuses.map((status) => (
-                              <option
-                                key={status}
-                                value={status}
-                              >
+                              <option key={status} value={status}>
                                 {getStatusLabel(status)}
                               </option>
                             ))}

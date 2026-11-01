@@ -1,13 +1,8 @@
 import twilio from "twilio";
-
 import { env } from "@/config/env.js";
 
 class SmsService {
-  async sendRepairStatusSms(
-    phone: string,
-    deviceModel: string,
-    status: string,
-  ): Promise<void> {
+  private getClient() {
     const {
       twilioAccountSid,
       twilioAuthToken,
@@ -19,15 +14,39 @@ class SmsService {
       !twilioAuthToken ||
       !twilioPhoneNumber
     ) {
-      console.warn("Twilio is not configured. SMS skipped.");
-      return;
+      throw new Error("Twilio configuration is missing in .env");
     }
 
+    return twilio(twilioAccountSid, twilioAuthToken);
+  }
+
+  // Test SMS - Twilio Trial Account
+  async sendTestSms(phone: string): Promise<string> {
+    const client = this.getClient();
+
+    const message = await client.messages.create({
+      body: "sms_customer_support",
+      from: env.twilioPhoneNumber!,
+      to: phone,
+    });
+
+    console.log("Test SMS submitted. SID:", message.sid);
+
+    return message.sid;
+  }
+
+  // Repair status SMS
+  async sendRepairStatusSms(
+    phone: string,
+    deviceModel: string,
+    status: string,
+  ): Promise<void> {
     const messages: Record<string, string> = {
-      in_progress: `${deviceModel} repair is now in progress.`,
+      received: `${deviceModel} repair has been received.`,
+      in_progress: `${deviceModel} repair is in progress.`,
       ready: `Your ${deviceModel} repair is ready for pickup.`,
-      delivered: `Your ${deviceModel} repair has been delivered. Thank you!`,
-      cancelled: `Your ${deviceModel} repair has been cancelled.`,
+      delivered: `${deviceModel} repair has been delivered. Thank you!`,
+      cancelled: `${deviceModel} repair has been cancelled.`,
     };
 
     const message = messages[status];
@@ -35,18 +54,14 @@ class SmsService {
     if (!message) return;
 
     try {
-      const client = twilio(
-        twilioAccountSid,
-        twilioAuthToken,
-      );
+      const client = this.getClient();
 
       await client.messages.create({
         body: message,
-        from: twilioPhoneNumber,
+        from: env.twilioPhoneNumber!,
         to: phone,
       });
     } catch (error) {
-      // SMS failure should not undo the repair status update.
       console.error("Repair status SMS failed:", error);
     }
   }

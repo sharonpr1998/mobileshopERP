@@ -1,9 +1,11 @@
+
 import { Router } from "express";
 
 import repairController from "@/controllers/repair.controller.js";
 import { authenticate } from "@/middlewares/auth.middleware.js";
 import { authorize } from "@/middlewares/permission.middleware.js";
 import { validate } from "@/middlewares/validate.middleware.js";
+
 import {
   createRepairSchema,
   updateRepairStatusSchema,
@@ -11,6 +13,7 @@ import {
 
 const router = Router();
 
+// Create Repair
 router.post(
   "/",
   authenticate,
@@ -19,6 +22,7 @@ router.post(
   repairController.create,
 );
 
+// Get All Repairs
 router.get(
   "/",
   authenticate,
@@ -26,6 +30,15 @@ router.get(
   repairController.getAll,
 );
 
+// Test SMS - Temporary testing endpoint
+router.post(
+  "/test-sms",
+  authenticate,
+  authorize("repair", "update", "transaction"),
+  repairController.testSms,
+);
+
+// Update Repair Status
 router.patch(
   "/:id/status",
   authenticate,
