@@ -2,16 +2,16 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/sever.js",
+  "main": "dist/server.js",
   "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "seed:roles": "tsx src/scripts/seed-roles.ts",
-    "seed:rbac": "tsx src/scripts/seed-rbac.ts",
-    "seed:admin": "tsx src/scripts/seed-admin.ts"
-  },
+"scripts": {
+  "dev": "tsx watch src/server.ts",
+  "build": "tsc && tsc-alias",
+  "start": "node dist/server.js",
+  "seed:roles": "tsx src/scripts/seed-roles.ts",
+  "seed:rbac": "tsx src/scripts/seed-rbac.ts",
+  "seed:admin": "tsx src/scripts/seed-admin.ts"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -37,6 +37,7 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.5",
+    "tsc-alias": "^1.9.10",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
